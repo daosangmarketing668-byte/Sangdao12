@@ -2,16 +2,19 @@
  * File: Tet.js
  * Hiệu ứng: Pháo hoa, cánh hoa rơi cho Tiệc Tất Niên
  * Mục tiêu: Tạo trải nghiệm Tết theo mẫu thiết kế
+ * Cải tiến: Animation mượt mà, hiệu ứng sinh động hơn
  */
 
 // Khởi tạo sau khi DOM sẵn sàng
 document.addEventListener("DOMContentLoaded", () => {
   setupFireworks();
   setupPetals();
+  setupEnhancedEffects();
 });
 
 /**
  * Pháo hoa bằng Canvas: hạt nổ, trọng lực, mờ dần
+ * Cải tiến: Thêm trail, sparkle, particle đa dạng
  */
 function setupFireworks() {
   const canvas = document.getElementById("fireworks");
@@ -25,7 +28,7 @@ function setupFireworks() {
     height = canvas.height = window.innerHeight;
   });
 
-  // Bảng màu Tết truyền thống
+  // Bảng màu Tết truyền thống mở rộng
   const palette = [
     "#FFD700", // gold
     "#DAA520", // gold-soft
@@ -33,6 +36,15 @@ function setupFireworks() {
     "#8B0000", // deep-red
     "#FF6347", // tomato
     "#FFA500", // orange
+    "#FF1493", // deep-pink
+    "#00CED1", // dark-turquoise
+    "#9370DB", // medium-purple
+    "#32CD32", // lime-green
+    "#FF69B4", // hot-pink
+    "#1E90FF", // dodger-blue
+    "#FFB6C1", // light-pink
+    "#F0E68C", // khaki
+    "#DDA0DD", // plum
   ];
 
   // Danh sách hạt pháo hoa
@@ -40,59 +52,137 @@ function setupFireworks() {
   const gravity = 0.08;
   const drag = 0.98;
 
-  // Tạo vụ nổ tại (x, y)
-  function burst(x, y, count = 80, power = 5) {
-    const color = palette[Math.floor(Math.random() * palette.length)];
-    for (let i = 0; i < count; i++) {
-      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.3;
-      const speed = power + Math.random() * power * 0.8;
+  // Tạo vụ nổ pháo hoa - giảm hiệu suất
+  function createExplosion(x, y, color) {
+    const particleCount = 40; // Giảm từ 80-160 xuống 40
+    const power = 3 + Math.random() * 3; // Giảm từ 5-9 xuống 3-6
+    
+    for (let i = 0; i < particleCount; i++) {
+      const particleAngle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
+      const velocity = power * (0.5 + Math.random() * 0.5);
+      
+      particles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(particleAngle) * velocity,
+        vy: Math.sin(particleAngle) * velocity,
+        color: color,
+        alpha: 1,
+        size: 2 + Math.random() * 2,
+        trail: []
+      });
+    }
+    
+    // Giảm số lượng sparkles
+    for (let i = 0; i < 10; i++) { // Giảm từ 30 xuống 10
+      const sparkleAngle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 8 + 4;
       particles.push({
         x,
         y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 100 + Math.random() * 50,
+        vx: Math.cos(sparkleAngle) * speed,
+        vy: Math.sin(sparkleAngle) * speed,
+        life: 80 + Math.random() * 40,
         alpha: 1,
-        color,
-        sparkle: Math.random() < 0.4,
-        size: 2 + Math.random() * 3,
+        color: Math.random() > 0.5 ? "#FFFFFF" : "#FFD700",
+        sparkle: true,
+        size: Math.random() * 2 + 0.5,
+        trail: [],
+        maxTrailLength: 5,
+        rotation: 0,
+        rotationSpeed: 0,
+        special: true,
       });
     }
   }
 
-  // Vẽ hạt
+  // Điều chỉnh màu sáng/tối
+  function adjustColor(color, amount) {
+    const num = parseInt(color.replace("#", ""), 16);
+    const r = Math.min(255, ((num >> 16) & 255) + amount);
+    const g = Math.min(255, ((num >> 8) & 255) + amount);
+    const b = Math.min(255, (num & 255) + amount);
+    return "#" + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+  }
+
+  // Vẽ hạt với trail và rotation
   function drawParticle(p) {
+    // Vẽ trail
+    p.trail.forEach((point, index) => {
+      ctx.save();
+      ctx.globalAlpha = point.alpha * (index / p.trail.length) * 0.4;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, p.size * (index / p.trail.length), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // Vẽ particle chính
     ctx.save();
     ctx.globalAlpha = p.alpha;
     ctx.fillStyle = p.color;
+    
+    // Thêm rotation cho particle đặc biệt
+    if (p.rotation) {
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation);
+      ctx.translate(-p.x, -p.y);
+    }
+    
+    // Shadow và glow
+    ctx.shadowBlur = p.special ? 15 : 10;
+    ctx.shadowColor = p.color;
+    
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
     ctx.fill();
     
-    // Hiệu ứng lóe sáng (sparkle)
-    if (p.sparkle && Math.random() < 0.15) {
-      ctx.globalAlpha = p.alpha * 0.8;
-      ctx.fillStyle = "#FFD700";
+    // Hiệu ứng lóe sáng (sparkle) cải tiến
+    if (p.sparkle && Math.random() < 0.3) {
+      ctx.globalAlpha = p.alpha * 0.9;
+      ctx.fillStyle = p.special ? "#FFFFFF" : "#FFD700";
+      ctx.shadowBlur = 20;
       ctx.beginPath();
-      ctx.arc(p.x + (Math.random() - 0.5) * 6, p.y + (Math.random() - 0.5) * 6, p.size * 0.6, 0, Math.PI * 2);
+      ctx.arc(p.x + (Math.random() - 0.5) * 8, p.y + (Math.random() - 0.5) * 8, p.size * 0.8, 0, Math.PI * 2);
       ctx.fill();
     }
+    
     ctx.restore();
   }
 
-  // Vòng lặp animation
+  // Vòng lặp animation mượt mà hơn
   function tick() {
-    ctx.clearRect(0, 0, width, height);
+    // Clear với hiệu ứng mờ dần
+    ctx.fillStyle = "rgba(10, 14, 39, 0.08)";
+    ctx.fillRect(0, 0, width, height);
+    
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
+      
+      // Cập nhật trail
+      p.trail.push({ x: p.x, y: p.y, alpha: p.alpha });
+      if (p.trail.length > p.maxTrailLength) {
+        p.trail.shift();
+      }
+      
+      // Physics
       p.vx *= drag;
       p.vy *= drag;
       p.vy += gravity;
       p.x += p.vx;
       p.y += p.vy;
       p.life -= 1;
-      p.alpha = Math.max(0, p.life / 120);
+      p.alpha = Math.max(0, p.life / 150);
+      
+      // Rotation
+      if (p.rotationSpeed) {
+        p.rotation += p.rotationSpeed;
+      }
+      
       drawParticle(p);
+      
+      // Remove particle chết
       if (p.life <= 0 || p.alpha <= 0 || p.y > height + 50) {
         particles.splice(i, 1);
       }
@@ -100,22 +190,22 @@ function setupFireworks() {
     requestAnimationFrame(tick);
   }
 
-  // Tạo pháo hoa ngẫu nhiên định kỳ
+  // Tạo pháo hoa ngẫu nhiên định kỳ - giảm hiệu suất
   const autoTimer = setInterval(() => {
     const x = 100 + Math.random() * (width - 200);
     const y = 100 + Math.random() * (height * 0.4);
-    const count = 60 + Math.floor(Math.random() * 60);
-    const power = 4 + Math.random() * 3;
-    burst(x, y, count, power);
-  }, 1500);
+    const color = palette[Math.floor(Math.random() * palette.length)];
+    createExplosion(x, y, color);
+  }, 3000); // Tăng từ 1.8s lên 3s
 
   // Lưu tham chiếu vào element để dùng ở handler bên ngoài
-  canvas._burst = burst;
+  canvas._burst = createExplosion;
   tick();
 }
 
 /**
  * Tạo cánh hoa rơi: sinh phần tử và gán animation CSS
+ * Cải tiến: Animation đa dạng, hover effect, responsive
  */
 function setupPetals() {
   const petalsContainer = document.querySelector(".petals");
@@ -125,47 +215,72 @@ function setupPetals() {
   const petals = petalsContainer.querySelectorAll("span");
   petals.forEach((petal, index) => {
     // Thiết lập thời gian rơi ngẫu nhiên
-    const duration = 10 + Math.random() * 15;
-    const delay = Math.random() * 3;
+    const duration = 12 + Math.random() * 18;
+    const delay = Math.random() * 5;
     
     petal.style.setProperty("--duration", `${duration}s`);
+    petal.style.setProperty("--delay", `${delay}s`);
     
     // Thêm hiệu ứng xoay và scale ngẫu nhiên
     const rotation = Math.random() * 360;
-    const scale = 0.8 + Math.random() * 0.4;
+    const scale = 0.7 + Math.random() * 0.6;
+    const swayAmount = 15 + Math.random() * 25;
+    
     petal.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+    petal.style.setProperty("--sway-amount", `${swayAmount}px`);
     
     // Thêm hiệu ứng hover cho desktop
     petal.addEventListener('mouseenter', () => {
-      petal.style.transform = `rotate(${rotation + 180}deg) scale(${scale * 1.2})`;
-      petal.style.transition = 'transform 0.3s ease';
+      petal.style.transform = `rotate(${rotation + 180}deg) scale(${scale * 1.3})`;
+      petal.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+      petal.style.filter = 'brightness(1.3) drop-shadow(0 0 15px rgba(255, 215, 0, 0.8))';
     });
     
     petal.addEventListener('mouseleave', () => {
+      petal.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+      petal.style.filter = '';
+    });
+    
+    // Touch effect cho mobile
+    petal.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      petal.style.transform = `rotate(${rotation + 180}deg) scale(${scale * 1.3})`;
+      petal.style.transition = 'transform 0.3s ease-out';
+    });
+    
+    petal.addEventListener('touchend', () => {
       petal.style.transform = `rotate(${rotation}deg) scale(${scale})`;
     });
   });
 }
 
-// Bắn pháo hoa khi click vào màn hình
-document.addEventListener("click", (evt) => {
-  const canvas = document.getElementById("fireworks");
-  if (canvas && canvas._burst) {
-    const count = 80 + Math.floor(Math.random() * 40);
-    const power = 5 + Math.random() * 3;
-    canvas._burst(evt.clientX, evt.clientY, count, power);
-  }
-});
-
-// Bắn pháo hoa khi touch trên màn hình di động
-document.addEventListener("touchstart", (evt) => {
-  const canvas = document.getElementById("fireworks");
-  if (canvas && canvas._burst && evt.touches && evt.touches[0]) {
-    const count = 80 + Math.floor(Math.random() * 40);
-    const power = 5 + Math.random() * 3;
-    canvas._burst(evt.touches[0].clientX, evt.touches[0].clientY, count, power);
-  }
-}, { passive: true });
+/**
+ * Thiết lập hiệu ứng nâng cao - giảm hiệu suất
+ */
+function setupEnhancedEffects() {
+  // Click anywhere để bắn pháo hoa
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.petals') || e.target.closest('.frame')) return;
+    
+    const canvas = document.getElementById("fireworks");
+    if (canvas && canvas._burst) {
+      const color = palette[Math.floor(Math.random() * palette.length)];
+      canvas._burst(e.clientX, e.clientY, color);
+    }
+  });
+  
+  // Touch support cho mobile
+  document.addEventListener('touchstart', (e) => {
+    if (e.target.closest('.petals') || e.target.closest('.frame')) return;
+    
+    const canvas = document.getElementById("fireworks");
+    if (canvas && canvas._burst) {
+      const touch = e.touches[0];
+      const color = palette[Math.floor(Math.random() * palette.length)];
+      canvas._burst(touch.clientX, touch.clientY, color);
+    }
+  });
+}
 
 // Thêm hiệu ứng âm thanh mô phỏng (visual feedback)
 function createVisualFeedback(x, y) {
@@ -177,7 +292,7 @@ function createVisualFeedback(x, y) {
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: radial-gradient(circle, #FFD700 0%, transparent 70%);
+    background: radial-gradient(circle, #ff5e00ff 0%, transparent 70%);
     pointer-events: none;
     z-index: 1000;
     animation: feedbackPulse 0.6s ease-out forwards;
@@ -196,4 +311,3 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
-
